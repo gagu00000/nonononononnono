@@ -14,6 +14,70 @@ from sklearn.linear_model import LinearRegression
 import urllib.request
 import json
 from io import BytesIO
+# =========================================
+# 🔥 GLOBAL DARK THEME FIX (Force Dark Mode)
+# =========================================
+import streamlit as st
+
+st.markdown("""
+<style>
+
+/* Global App Background */
+.stApp {
+    background-color: #111 !important;
+    color: #f0f0f0 !important;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #1a1a1a !important;
+    color: #f0f0f0 !important;
+}
+
+/* Metric Cards */
+div[data-testid="metric-container"] {
+    background-color: #222 !important;
+    padding: 15px !important;
+    border-radius: 10px !important;
+    color: #f0f0f0 !important;
+}
+
+/* All Cards / Containers */
+div.css-1r6slb0, div.css-12w0qpk, .stMarkdown {
+    background-color: #111 !important;
+    color: #ffffff !important;
+}
+
+/* Inputs */
+.stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect {
+    background-color: #222 !important;
+    color: #fff !important;
+}
+
+.stSelectbox > div > div {
+    background-color: #222 !important;
+    color: #fff !important;
+}
+
+/* Plotly chart background */
+.js-plotly-plot .plotly, .plot-container {
+    background-color: #111 !important;
+    color: #fff !important;
+}
+
+/* Remove white blocks behind charts */
+svg.main-svg {
+    background-color: #111 !important;
+}
+
+/* Fix tables */
+.dataframe {
+    background-color: #111 !important;
+    color: #fff !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------
 # Theme & styling
