@@ -1,5 +1,5 @@
-# app.py - NovaMart Marketing Analytics Dashboard (Corporate Blue theme)
-# Place the 11 CSVs at the same level as this file (root).
+# app.py - NovaMart Marketing Analytics Dashboard (Hybrid Theme: Dark app + Corporate Blue sidebar/charts)
+# Place the 11 CSVs in the same folder as this file (root).
 # Requirements: streamlit, pandas, numpy, plotly, scikit-learn
 
 import streamlit as st
@@ -9,54 +9,83 @@ import plotly.express as px
 import plotly.io as pio
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
+import json, urllib.request
 
-# =========================
-# Theme: Corporate Blue
-# =========================
-PRIMARY = "#0B3D91"   # corporate deep blue
-ACCENT = "#2B8CC4"    # lighter corporate blue
-BG = "#F7FAFC"        # very light gray-blue background
-CARD_BG = "#FFFFFF"   # card background (white for clean corporate look)
-TEXT = "#0A0A0A"
+# ---------------------------
+# THEME SETTINGS
+# ---------------------------
+APP_BG = "#0E1117"         # dark app background
+TEXT_COLOR = "#FFFFFF"     # white text
+SIDEBAR_BLUE = "#1F4E79"   # user choice C (soft corporate blue)
+PRIMARY = "#0B3D91"
+ACCENT = "#2B8CC4"
+PALETTE = [PRIMARY, ACCENT, "#66A3D2", "#B2D4EE", "#F4B400"]
 
 st.set_page_config(page_title="NovaMart Marketing Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Plotly template (light corporate theme)
-pio.templates["corporate_blue"] = pio.templates["plotly_white"]
-pio.templates["corporate_blue"].layout.update({
-    "paper_bgcolor": CARD_BG,
-    "plot_bgcolor": CARD_BG,
-    "font": {"color": TEXT, "family": "Arial"},
-    "title": {"x": 0.01},
-    "colorway": [PRIMARY, ACCENT, "#66A3D2", "#B2D4EE", "#F4B400"]
+# ---------------------------
+# Plotly dark template with corporate blue palette
+# ---------------------------
+pio.templates["hybrid_blue"] = pio.templates["plotly_dark"]
+pio.templates["hybrid_blue"].layout.update({
+    "paper_bgcolor": APP_BG,
+    "plot_bgcolor": APP_BG,
+    "font": {"color": TEXT_COLOR, "family": "Arial"},
+    "colorway": PALETTE,
+    "legend": {"title_font": {"color": TEXT_COLOR}, "font": {"color": TEXT_COLOR}},
+    "title": {"x": 0.01, "font": {"color": TEXT_COLOR}},
 })
-pio.templates.default = "corporate_blue"
+pio.templates.default = "hybrid_blue"
 
-# Minimal CSS to style Streamlit containers consistently
-st.markdown(
-    f"""
-    <style>
-    .stApp {{ background-color: {BG}; color: {TEXT}; }}
-    .block-container{{ padding:1rem 2rem; }}
-    .big-title {{ font-size:28px; font-weight:700; color:{PRIMARY}; }}
-    /* Metric readability */
-    div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-container"] .stMetricValue {{
-        color: {TEXT} !important;
-    }}
-    /* Sidebar */
-    section[data-testid="stSidebar"] {{ background-color: #ffffff; color:{TEXT}; border-right:1px solid #e6eef6; }}
-    /* Plotly container styling (keep white charts on light background) */
-    .stPlotlyChart > div {{ background: transparent; }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# ---------------------------
+# CSS: Force dark app + blue sidebar; readable metrics & inputs
+# ---------------------------
+st.markdown(f"""
+<style>
+/* App background and main text */
+body, .stApp, .block-container {{
+  background-color: {APP_BG} !important;
+  color: {TEXT_COLOR} !important;
+}}
 
-# =========================
-# Data loading (root folder)
-# =========================
+/* Sidebar */
+section[data-testid="stSidebar"] {{
+  background-color: {SIDEBAR_BLUE} !important;
+  color: {TEXT_COLOR} !important;
+}}
+
+/* Metric card style */
+div[data-testid="metric-container"] {{
+  background: rgba(255,255,255,0.03) !important;
+  padding: 10px !important;
+  border-radius: 8px;
+}}
+div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-container"] .stMetricValue {{
+  color: {TEXT_COLOR} !important;
+}}
+
+/* Inputs readability */
+.stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect, .stSlider {{
+  color: {TEXT_COLOR} !important;
+}}
+
+/* Plotly container background (let template handle chart backgrounds) */
+.stPlotlyChart > div {{
+  background: transparent !important;
+}}
+
+/* Ensure headers and markdown show in white */
+h1, h2, h3, h4, h5, p, span, label {{
+  color: {TEXT_COLOR} !important;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------
+# DATA LOADING (root)
+# ---------------------------
 @st.cache_data
-def safe_read(path, parse_dates=None):
+def safe_read_csv(path, parse_dates=None):
     try:
         return pd.read_csv(path, parse_dates=parse_dates)
     except Exception:
@@ -64,26 +93,27 @@ def safe_read(path, parse_dates=None):
 
 @st.cache_data
 def load_all():
-    names = {
+    files = {
         'campaign': "campaign_performance.csv",
-        'channel_attribution': "channel_attribution.csv",
-        'corr': "correlation_matrix.csv",
         'customer': "customer_data.csv",
-        'journey': "customer_journey.csv",
-        'feature_importance': "feature_importance.csv",
-        'funnel': "funnel_data.csv",
-        'geo': "geographic_data.csv",
+        'product': "product_sales.csv",
         'lead': "lead_scoring_results.csv",
+        'feature_importance': "feature_importance.csv",
         'learning_curve': "learning_curve.csv",
-        'product': "product_sales.csv"
+        'geo': "geographic_data.csv",
+        'attribution': "channel_attribution.csv",
+        'funnel': "funnel_data.csv",
+        'journey': "customer_journey.csv",
+        'corr': "correlation_matrix.csv"
     }
     data = {}
-    for key, fname in names.items():
-        if key == 'campaign':
-            data[key] = safe_read(fname, parse_dates=['date'])
+    for k, fname in files.items():
+        if k == 'campaign':
+            data[k] = safe_read_csv(fname, parse_dates=['date'])
         else:
-            data[key] = safe_read(fname)
-    # Enrich campaign df if date exists
+            data[k] = safe_read_csv(fname)
+
+    # enrich campaign df
     if not data['campaign'].empty and 'date' in data['campaign'].columns:
         try:
             data['campaign']['date'] = pd.to_datetime(data['campaign']['date'])
@@ -92,8 +122,9 @@ def load_all():
             data['campaign']['quarter'] = data['campaign']['date'].dt.to_period('Q').astype(str)
         except Exception:
             pass
-    # Normalize learning_curve columns if present
-    if 'learning_curve' in data and not data['learning_curve'].empty:
+
+    # Normalize learning_curve column names if necessary
+    if not data['learning_curve'].empty:
         lc = data['learning_curve']
         rename_map = {}
         if 'training_size' in lc.columns and 'train_size' not in lc.columns:
@@ -103,17 +134,18 @@ def load_all():
         if rename_map:
             lc = lc.rename(columns=rename_map)
             data['learning_curve'] = lc
+
     return data
 
 data = load_all()
 
-# =========================
+# ---------------------------
 # Helpers
-# =========================
+# ---------------------------
 def df_or_warn(key):
     df = data.get(key)
     if df is None or df.empty:
-        st.warning(f"Dataset `{key}` missing or empty. Upload `{key}.csv` in repo root.")
+        st.warning(f"Dataset `{key}` missing or empty. Upload `{key}.csv` in the repo root to enable related charts.")
         return pd.DataFrame()
     return df.copy()
 
@@ -123,12 +155,13 @@ def money(x):
     except Exception:
         return x
 
-# =========================
-# Visualizations
-# =========================
+# ---------------------------
+# VISUALIZATION FUNCTIONS
+# ---------------------------
 
-# KPI cards for Executive Overview
-def kpi_cards():
+# Executive KPIs
+def kpi_overview():
+    st.header("Executive Overview")
     df = df_or_warn('campaign')
     cust = df_or_warn('customer')
     c1, c2, c3, c4 = st.columns(4)
@@ -148,50 +181,50 @@ def kpi_cards():
         c4.metric("ROAS", f"{roas:.2f}" if not np.isnan(roas) else "N/A")
     c4.metric("Customer Count", f"{cust.shape[0]:,}" if not cust.empty else "N/A")
 
-# Channel horizontal bar (Comparison)
-def channel_comparison():
+# Channel performance (horizontal bar)
+def channel_performance():
     st.subheader("Channel Performance Comparison")
     df = df_or_warn('campaign')
     if df.empty:
         return
     metric = st.selectbox("Metric", ['revenue', 'conversions', 'roas'], index=0, key="chan_metric")
     if metric not in df.columns:
-        st.warning(f"Metric '{metric}' not found in campaign data.")
+        st.warning(f"Metric '{metric}' not found.")
         return
-    agg = df.groupby('channel')[metric].sum().reset_index().sort_values(metric)
+    agg = df.groupby('channel', dropna=False)[metric].sum().reset_index().sort_values(metric)
     fig = px.bar(agg, x=metric, y='channel', orientation='h', text_auto=True, title=f"Total {metric.title()} by Channel")
     st.plotly_chart(fig, use_container_width=True)
 
-# Revenue trend (daily/weekly/monthly)
+# Revenue trend
 def revenue_trend():
-    st.subheader("Revenue Trend")
+    st.subheader("Revenue Trend Over Time")
     df = df_or_warn('campaign')
     if df.empty or 'date' not in df.columns or 'revenue' not in df.columns:
-        st.warning("campaign_performance.csv needs 'date' and 'revenue'.")
+        st.warning("campaign_performance.csv must contain 'date' and 'revenue'.")
         return
     min_date = df['date'].min()
     max_date = df['date'].max()
     date_range = st.date_input("Date range", value=(min_date, max_date), min_value=min_date, max_value=max_date, key="rt_dates")
-    agg = st.selectbox("Aggregation level", ['Daily', 'Weekly', 'Monthly'], index=2, key="rt_agg")
+    agg_level = st.selectbox("Aggregation level", ['Daily', 'Weekly', 'Monthly'], index=2, key="rt_agg")
     channels = st.multiselect("Channels", options=df['channel'].dropna().unique().tolist() if 'channel' in df.columns else [], default=df['channel'].dropna().unique().tolist() if 'channel' in df.columns else [], key="rt_channels")
     dff = df[(df['date'] >= pd.to_datetime(date_range[0])) & (df['date'] <= pd.to_datetime(date_range[1]))]
     if channels:
         dff = dff[dff['channel'].isin(channels)]
-    if agg == 'Daily':
+    if agg_level == 'Daily':
         res = dff.groupby('date')['revenue'].sum().reset_index()
-    elif agg == 'Weekly':
+    elif agg_level == 'Weekly':
         res = dff.set_index('date').resample('W')['revenue'].sum().reset_index()
     else:
         res = dff.set_index('date').resample('M')['revenue'].sum().reset_index()
-    fig = px.line(res, x='date', y='revenue', title=f"{agg} Revenue Trend")
+    fig = px.line(res, x='date', y='revenue', title=f"{agg_level} Revenue Trend")
     st.plotly_chart(fig, use_container_width=True)
 
-# Cumulative conversions area
+# Cumulative conversions (stacked area)
 def cumulative_conversions():
     st.subheader("Cumulative Conversions by Channel")
     df = df_or_warn('campaign')
     if df.empty or 'conversions' not in df.columns or 'date' not in df.columns:
-        st.warning("campaign_performance.csv needs 'date' and 'conversions'.")
+        st.warning("campaign_performance.csv must include 'date' and 'conversions'.")
         return
     region = st.selectbox("Region", options=['All'] + (sorted(df['region'].dropna().unique().tolist()) if 'region' in df.columns else []), key="cum_region")
     dff = df.copy()
@@ -202,14 +235,14 @@ def cumulative_conversions():
     fig = px.area(tmp, x='date', y='cum', color='channel', title='Cumulative Conversions')
     st.plotly_chart(fig, use_container_width=True)
 
-# Histogram: age
-def age_histogram():
+# Histogram - age
+def age_distribution():
     st.subheader("Customer Age Distribution")
     df = df_or_warn('customer')
     if df.empty or 'age' not in df.columns:
         st.warning("customer_data.csv missing 'age'.")
         return
-    bins = st.slider("Bins", min_value=5, max_value=100, value=20, key="age_bins")
+    bins = st.slider("Bins", 5, 50, 20, key="age_bins")
     segs = ['All'] + (df['segment'].dropna().unique().tolist() if 'segment' in df.columns else [])
     seg = st.selectbox("Segment", options=segs, index=0, key="age_seg")
     dff = df.copy()
@@ -219,33 +252,33 @@ def age_histogram():
     st.plotly_chart(fig, use_container_width=True)
 
 # LTV box plot
-def ltv_boxplot():
-    st.subheader("LTV by Customer Segment")
+def ltv_by_segment():
+    st.subheader("Lifetime Value (LTV) by Segment")
     df = df_or_warn('customer')
     if df.empty or 'ltv' not in df.columns or 'segment' not in df.columns:
         st.warning("customer_data.csv must include 'ltv' and 'segment'.")
         return
     show_points = st.checkbox("Show individual points", key="ltv_points")
-    fig = px.box(df, x='segment', y='ltv', points='all' if show_points else 'outliers', title="LTV by Segment")
+    fig = px.box(df, x='segment', y='ltv', points='all' if show_points else 'outliers', title='LTV by Segment')
     st.plotly_chart(fig, use_container_width=True)
 
-# Violin plot: satisfaction score distribution
+# Violin plot - satisfaction
 def satisfaction_violin():
-    st.subheader("Satisfaction Score by NPS")
+    st.subheader("Satisfaction Score Distribution by NPS")
     df = df_or_warn('customer')
     if df.empty or 'satisfaction_score' not in df.columns or 'nps_category' not in df.columns:
-        st.warning("customer_data.csv must include 'satisfaction_score' and 'nps_category'.")
+        st.warning("customer_data.csv missing satisfaction_score or nps_category.")
         return
-    split = st.selectbox("Split by", options=['None'] + (df['acquisition_channel'].dropna().unique().tolist() if 'acquisition_channel' in df.columns else []), key="violin_split")
-    if split == 'None' or 'acquisition_channel' not in df.columns:
-        fig = px.violin(df, x='nps_category', y='satisfaction_score', box=True, points='outliers', title="Satisfaction by NPS")
+    split = 'acquisition_channel' if 'acquisition_channel' in df.columns else None
+    if split:
+        fig = px.violin(df, x='nps_category', y='satisfaction_score', color=split, box=True, points='outliers', title='Satisfaction by NPS and Channel')
     else:
-        fig = px.violin(df, x='nps_category', y='satisfaction_score', color='acquisition_channel', box=True, points='outliers', title="Satisfaction by NPS and Channel")
+        fig = px.violin(df, x='nps_category', y='satisfaction_score', box=True, points='outliers', title='Satisfaction by NPS')
     st.plotly_chart(fig, use_container_width=True)
 
-# Scatter: income vs ltv
+# Income vs LTV scatter
 def income_vs_ltv():
-    st.subheader("Income vs Lifetime Value")
+    st.subheader("Income vs LTV")
     df = df_or_warn('customer')
     if df.empty or 'income' not in df.columns or 'ltv' not in df.columns:
         st.warning("customer_data.csv must include 'income' and 'ltv'.")
@@ -256,10 +289,8 @@ def income_vs_ltv():
         sub = df.dropna(subset=['income','ltv'])
         if len(sub) > 1:
             lr = LinearRegression()
-            X = sub['income'].values.reshape(-1,1)
-            y = sub['ltv'].values
             try:
-                lr.fit(X,y)
+                lr.fit(sub[['income']], sub['ltv'])
                 xs = np.linspace(sub['income'].min(), sub['income'].max(), 100)
                 ys = lr.predict(xs.reshape(-1,1))
                 fig.add_scatter(x=xs, y=ys, mode='lines', name='Trendline', line=dict(color=PRIMARY))
@@ -267,19 +298,19 @@ def income_vs_ltv():
                 pass
     st.plotly_chart(fig, use_container_width=True)
 
-# Bubble chart: CTR vs Conversion Rate
-def bubble_channel_matrix():
-    st.subheader("Channel Performance Matrix")
+# Bubble chart - CTR vs Conversion Rate
+def channel_bubble():
+    st.subheader("Channel CTR vs Conversion Rate (bubble)")
     df = df_or_warn('campaign')
     if df.empty or not set(['ctr','conversion_rate','spend']).issubset(df.columns):
-        st.warning("campaign_performance needs 'ctr','conversion_rate','spend' for bubble chart.")
+        st.warning("campaign_performance missing ctr/conversion_rate/spend.")
         return
     agg = df.groupby('channel').agg({'ctr':'mean','conversion_rate':'mean','spend':'sum'}).reset_index().dropna()
     fig = px.scatter(agg, x='ctr', y='conversion_rate', size='spend', color='channel', hover_data=['spend'], title="CTR vs Conversion Rate by Channel")
     st.plotly_chart(fig, use_container_width=True)
 
 # Correlation heatmap
-def corr_heatmap():
+def correlation_heatmap():
     st.subheader("Correlation Heatmap")
     df = df_or_warn('corr')
     if df.empty:
@@ -288,39 +319,40 @@ def corr_heatmap():
         fig = px.imshow(df.values, x=df.columns, y=df.index, color_continuous_scale='RdBu', zmin=-1, zmax=1)
         st.plotly_chart(fig, use_container_width=True)
     except Exception:
-        st.warning("correlation_matrix.csv must be a square matrix with row/col labels.")
+        st.warning("correlation_matrix.csv must be a square matrix with row/column labels.")
 
-# Calendar heatmap (simple)
+# Calendar heatmap
 def calendar_heatmap():
     st.subheader("Calendar Heatmap")
     df = df_or_warn('campaign')
     if df.empty or 'date' not in df.columns:
-        st.warning("campaign_performance needs 'date' for calendar heatmap.")
+        st.warning("campaign_performance needs 'date'.")
         return
-    metric = st.selectbox("Metric", options=['revenue','impressions'] if set(['revenue','impressions']).issubset(df.columns) else [c for c in ['revenue','impressions'] if c in df.columns], key="cal_metric")
-    if metric not in df.columns:
-        st.warning("Selected metric missing.")
+    metric_options = [c for c in ['revenue','impressions'] if c in df.columns]
+    if not metric_options:
+        st.warning("No suitable metric for calendar heatmap.")
         return
+    metric = st.selectbox("Metric", metric_options, key="cal_metric")
     d = df.groupby('date')[metric].sum().reset_index()
     d['dow'] = d['date'].dt.weekday
     d['week'] = d['date'].dt.isocalendar().week
     pivot = d.pivot_table(index='dow', columns='week', values=metric, aggfunc='sum')
-    fig = px.imshow(pivot, labels=dict(x='Week', y='Day', color=metric), title="Calendar Heatmap")
+    fig = px.imshow(pivot, labels=dict(x='Week', y='Day of Week', color=metric), title="Calendar Heatmap")
     st.plotly_chart(fig, use_container_width=True)
 
-# Donut attribution
+# Donut (attribution)
 def donut_attribution():
     st.subheader("Attribution Model Comparison")
-    df = df_or_warn('channel_attribution')
+    df = df_or_warn('attribution')
     if df.empty or 'channel' not in df.columns:
-        st.warning("channel_attribution.csv is required with 'channel' column.")
+        st.warning("channel_attribution.csv missing or invalid.")
         return
     models = [c for c in df.columns if c != 'channel']
     model = st.selectbox("Attribution model", models, key="attr_model")
-    fig = px.pie(df, names='channel', values=model, hole=0.5, title=f"Attribution: {model}")
+    fig = px.pie(df, names='channel', values=model, hole=0.5, title=f"Attribution - {model}")
     st.plotly_chart(fig, use_container_width=True)
 
-# Treemap product sales
+# Treemap products
 def treemap_products():
     st.subheader("Product Sales Treemap")
     df = df_or_warn('product')
@@ -328,9 +360,9 @@ def treemap_products():
         return
     path = [c for c in ['category','subcategory','product_name'] if c in df.columns]
     if not path:
-        st.warning("product_sales.csv needs category/subcategory/product_name columns.")
+        st.warning("product_sales.csv missing hierarchy columns.")
         return
-    fig = px.treemap(df, path=path, values='sales', color='profit_margin' if 'profit_margin' in df.columns else None, title="Product Hierarchy")
+    fig = px.treemap(df, path=path, values='sales', color='profit_margin' if 'profit_margin' in df.columns else None, title="Product Treemap")
     st.plotly_chart(fig, use_container_width=True)
 
 # Funnel
@@ -338,54 +370,58 @@ def funnel_viz():
     st.subheader("Conversion Funnel")
     df = df_or_warn('funnel')
     if df.empty or not set(['stage','visitors']).issubset(df.columns):
-        st.warning("funnel_data.csv needs 'stage' and 'visitors'.")
+        st.warning("funnel_data.csv requires 'stage' and 'visitors'.")
         return
     fig = px.funnel(df, x='visitors', y='stage', title="Funnel")
     st.plotly_chart(fig, use_container_width=True)
 
-# Geographic analysis (uses latitude/longitude when present)
-def geographic_analysis():
-    st.header("Geographic Analysis")
-    df = df_or_warn('geo')
+# Learning curve (handles your uploaded columns)
+def learning_curve_plot():
+    st.subheader("Learning Curve")
+    df = df_or_warn('learning_curve')
     if df.empty:
         return
-    # prefer total_revenue if present
-    candidates = [c for c in ['total_revenue','total_customers','market_penetration','yoy_growth'] if c in df.columns]
-    if not candidates:
-        st.warning("geographic_data.csv must have total_revenue/total_customers/market_penetration/yoy_growth")
-        return
-    default = 'total_revenue' if 'total_revenue' in candidates else candidates[0]
-    metric = st.selectbox("Metric", candidates, index=candidates.index(default), key="geo_metric")
-    lat = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
-    lon = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
-    if lat and lon:
-        st.info("Rendering bubble map using latitude/longitude.")
-        size = 'store_count' if 'store_count' in df.columns else None
-        color = 'customer_satisfaction' if 'customer_satisfaction' in df.columns else metric
-        fig = px.scatter_geo(df, lat=lat, lon=lon, size=size, color=color, hover_name='state' if 'state' in df.columns else None, projection="natural earth", title=f"{metric} by Location")
-        fig.update_layout(height=650)
-        st.plotly_chart(fig, use_container_width=True)
-        return
-    # fallback to bar by state
-    if 'state' in df.columns:
-        st.info("Latitude/longitude columns not found — showing top states by metric.")
-        bar = df.groupby('state')[metric].sum().reset_index().sort_values(metric, ascending=False).head(20)
-        fig = px.bar(bar, x=metric, y='state', orientation='h', title=f"Top states by {metric}")
-        st.plotly_chart(fig, use_container_width=True)
-        return
-    st.warning("geographic_data.csv requires either latitude/longitude or state column.")
+    # expected: train_size, train_score, val_score (we normalized names on load)
+    required = {'train_size','train_score','val_score'}
+    if not required.issubset(set(df.columns)):
+        st.warning("learning_curve.csv must include train_size, train_score, val_score (or training_size/validation_score). Attempting to remap if possible.")
+        remap = {}
+        if 'training_size' in df.columns:
+            remap['training_size'] = 'train_size'
+        if 'validation_score' in df.columns:
+            remap['validation_score'] = 'val_score'
+        if remap:
+            df = df.rename(columns=remap)
+        if not required.issubset(set(df.columns)):
+            st.error("After attempting mapping, required columns are still missing.")
+            return
+    show_conf = st.checkbox("Show confidence bands", value=True, key="lc_conf")
+    fig = px.line(df, x='train_size', y=['train_score','val_score'], labels={'value':'Score','variable':'Dataset'}, title="Learning Curve")
+    st.plotly_chart(fig, use_container_width=True)
 
-# Model evaluation (confusion, ROC, learning curve, feature importance)
+# Feature importance
+def feature_importance_plot():
+    st.subheader("Feature Importance")
+    df = df_or_warn('feature_importance')
+    if df.empty or not set(['feature','importance']).issubset(df.columns):
+        st.warning("feature_importance.csv must contain feature and importance.")
+        return
+    asc = st.checkbox("Sort ascending", value=False, key="fi_sort")
+    dfp = df.sort_values('importance', ascending=asc)
+    fig = px.bar(dfp, x='importance', y='feature', orientation='h', error_x='std' if 'std' in df.columns else None, title="Feature Importance")
+    st.plotly_chart(fig, use_container_width=True)
+
+# Confusion matrix & ROC
 def confusion_matrix_viz():
     st.subheader("Confusion Matrix")
     df = df_or_warn('lead')
     if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
-        st.warning("lead_scoring_results must contain actual_converted and predicted_probability.")
+        st.warning("lead_scoring_results.csv needs actual_converted and predicted_probability.")
         return
-    thresh = st.slider("Probability threshold", 0.0, 1.0, 0.5, key="conf_thresh")
-    preds = (df['predicted_probability'] >= thresh).astype(int)
+    thr = st.slider("Threshold", 0.0, 1.0, 0.5, key="conf_thr")
+    preds = (df['predicted_probability'] >= thr).astype(int)
     ct = pd.crosstab(df['actual_converted'], preds, rownames=['Actual'], colnames=['Predicted'])
-    fig = px.imshow(ct.values, x=ct.columns.astype(str), y=ct.index.astype(str), text_auto=True, labels=dict(x='Predicted', y='Actual'), title=f"Confusion Matrix (thr={thresh:.2f})")
+    fig = px.imshow(ct.values, x=ct.columns.astype(str), y=ct.index.astype(str), text_auto=True, labels=dict(x='Predicted', y='Actual'), title=f"Confusion Matrix (thr={thr:.2f})")
     st.plotly_chart(fig, use_container_width=True)
 
 def roc_viz():
@@ -400,50 +436,41 @@ def roc_viz():
     st.plotly_chart(fig, use_container_width=True)
     st.write(f"AUC = {roc_auc:.3f}")
 
-def learning_curve_viz():
-    st.subheader("Learning Curve")
-    df = df_or_warn('learning_curve')
+# Geographic analysis (lat/lon bubble map or top-states bar fallback)
+def geographic_analysis():
+    st.header("Geographic Analysis")
+    df = df_or_warn('geo')
     if df.empty:
         return
-    # Accept either train_size/train_score/val_score OR training_size/train_score/validation_score
-    # We renamed earlier in load_all() to standard names if necessary
-    required = {'train_size','train_score','val_score'}
-    if not required.issubset(set(df.columns)):
-        st.warning("learning_curve.csv must include train_size, train_score, val_score (or training_size/train_score/validation_score). App attempts automatic mapping when possible.")
-        # attempt to remap on the fly
-        remap = {}
-        if 'training_size' in df.columns:
-            remap['training_size'] = 'train_size'
-        if 'validation_score' in df.columns:
-            remap['validation_score'] = 'val_score'
-        if remap:
-            df = df.rename(columns=remap)
-            if not required.issubset(set(df.columns)):
-                st.error("After automatic mapping, required columns still missing.")
-                return
-        else:
-            return
-    show_conf = st.checkbox("Show confidence bands", value=True, key="lc_conf")
-    fig = px.line(df, x='train_size', y=['train_score','val_score'], labels={'value':'Score','variable':'Dataset'}, title="Learning Curve")
-    if show_conf and 'train_score_std' in df.columns and 'validation_score_std' in df.columns:
-        # draw confidence bands manually (simple fill technique)
-        fig.add_traces(px.scatter(df, x='train_size', y=(df['train_score']+df['train_score_std'])).data)
-    st.plotly_chart(fig, use_container_width=True)
-
-def feature_importance_viz():
-    st.subheader("Feature Importance")
-    df = df_or_warn('feature_importance')
-    if df.empty or not set(['feature','importance']).issubset(df.columns):
-        st.warning("feature_importance.csv must include 'feature' and 'importance'.")
+    candidates = [c for c in ['total_revenue','total_customers','market_penetration','yoy_growth'] if c in df.columns]
+    if not candidates:
+        st.warning("geographic_data.csv must include at least one metric: total_revenue/total_customers/market_penetration/yoy_growth.")
         return
-    asc = st.checkbox("Sort ascending", value=False, key="fi_sort")
-    dfp = df.sort_values('importance', ascending=asc)
-    fig = px.bar(dfp, x='importance', y='feature', orientation='h', error_x='std' if 'std' in df.columns else None, title="Feature Importance")
-    st.plotly_chart(fig, use_container_width=True)
+    default_metric = 'total_revenue' if 'total_revenue' in candidates else candidates[0]
+    metric = st.selectbox("Metric", candidates, index=candidates.index(default_metric), key="geo_metric")
+    # lat/lon detection
+    lat_col = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
+    lon_col = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
+    if lat_col and lon_col:
+        st.info("Rendering bubble map using latitude/longitude.")
+        size_col = 'store_count' if 'store_count' in df.columns else None
+        color_col = 'customer_satisfaction' if 'customer_satisfaction' in df.columns else metric
+        fig = px.scatter_geo(df, lat=lat_col, lon=lon_col, size=size_col, color=color_col, hover_name='state' if 'state' in df.columns else None, projection="natural earth", title=f"{metric} by Location")
+        fig.update_layout(height=650)
+        st.plotly_chart(fig, use_container_width=True)
+        return
+    # fallback to bar by state
+    if 'state' in df.columns:
+        st.info("Latitude/longitude not present — showing top states by metric.")
+        bar = df.groupby('state')[metric].sum().reset_index().sort_values(metric, ascending=False).head(20)
+        fig = px.bar(bar, x=metric, y='state', orientation='h', title=f"Top States by {metric}")
+        st.plotly_chart(fig, use_container_width=True)
+        return
+    st.warning("geographic_data.csv requires either latitude/longitude columns or a 'state' column.")
 
-# =========================
-# App router
-# =========================
+# ---------------------------
+# PAGE ROUTER
+# ---------------------------
 st.sidebar.title("NovaMart Dashboard")
 page = st.sidebar.radio("Navigate", [
     "Executive Overview",
@@ -457,11 +484,11 @@ page = st.sidebar.radio("Navigate", [
 
 if page == "Executive Overview":
     st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>Executive Overview</div>", unsafe_allow_html=True)
-    kpi_cards()
+    kpi_overview()
     st.markdown("---")
     revenue_trend()
     st.markdown("---")
-    channel_comparison()
+    channel_performance()
 
 elif page == "Campaign Analytics":
     st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>Campaign Analytics</div>", unsafe_allow_html=True)
@@ -471,17 +498,19 @@ elif page == "Campaign Analytics":
     st.markdown("---")
     calendar_heatmap()
     st.markdown("---")
-    channel_comparison()
+    channel_performance()
 
 elif page == "Customer Insights":
     st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>Customer Insights</div>", unsafe_allow_html=True)
-    age_histogram()
+    age_distribution()
     st.markdown("---")
-    ltv_boxplot()
+    ltv_by_segment()
     st.markdown("---")
     satisfaction_violin()
     st.markdown("---")
     income_vs_ltv()
+    st.markdown("---")
+    channel_bubble()
 
 elif page == "Product Performance":
     st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>Product Performance</div>", unsafe_allow_html=True)
@@ -497,7 +526,7 @@ elif page == "Attribution & Funnel":
     st.markdown("---")
     funnel_viz()
     st.markdown("---")
-    corr_heatmap()
+    correlation_heatmap()
 
 elif page == "ML Model Evaluation":
     st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>ML Model Evaluation</div>", unsafe_allow_html=True)
@@ -505,9 +534,9 @@ elif page == "ML Model Evaluation":
     st.markdown("---")
     roc_viz()
     st.markdown("---")
-    learning_curve_viz()
+    learning_curve_plot()
     st.markdown("---")
-    feature_importance_viz()
+    feature_importance_plot()
 
 # Footer
 st.sidebar.markdown("---")
