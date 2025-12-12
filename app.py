@@ -437,36 +437,295 @@ def roc_viz():
     st.write(f"AUC = {roc_auc:.3f}")
 
 # Geographic analysis (lat/lon bubble map or top-states bar fallback)
-def geographic_analysis():
-    st.header("Geographic Analysis")
-    df = df_or_warn('geo')
+# Geographic Analysis for India - Enhanced with Choropleth
+# Replace the geographic_analysis() function in your app.py with this
+
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
+def geographic_analysis_india(data_dict):
+    """Geographic Analysis focused on India with state choropleth map"""
+    st.header("Geographic Analysis - India")
+    
+    df = df_or_warn(data_dict, 'geo')
     if df.empty:
         return
-    candidates = [c for c in ['total_revenue','total_customers','market_penetration','yoy_growth'] if c in df.columns]
+    
+    # Available metrics
+    candidates = [c for c in ['total_revenue', 'total_customers', 'market_penetration', 'yoy_growth'] 
+                  if c in df.columns]
+    
     if not candidates:
-        st.warning("geographic_data.csv must include at least one metric: total_revenue/total_customers/market_penetration/yoy_growth.")
+        st.warning("geographic_data.csv must include at least one metric.")
         return
+    
+    # Metric selector
     default_metric = 'total_revenue' if 'total_revenue' in candidates else candidates[0]
-    metric = st.selectbox("Metric", candidates, index=candidates.index(default_metric), key="geo_metric")
-    # lat/lon detection
-    lat_col = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
-    lon_col = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
-    if lat_col and lon_col:
-        st.info("Rendering bubble map using latitude/longitude.")
-        size_col = 'store_count' if 'store_count' in df.columns else None
-        color_col = 'customer_satisfaction' if 'customer_satisfaction' in df.columns else metric
-        fig = px.scatter_geo(df, lat=lat_col, lon=lon_col, size=size_col, color=color_col, hover_name='state' if 'state' in df.columns else None, projection="natural earth", title=f"{metric} by Location")
-        fig.update_layout(height=650)
-        st.plotly_chart(fig, use_container_width=True)
+    metric = st.selectbox("Select Metric", candidates, 
+                          index=candidates.index(default_metric), key="geo_metric")
+    
+    # Check for state column
+    if 'state' not in df.columns:
+        st.error("geographic_data.csv must include a 'state' column.")
         return
-    # fallback to bar by state
-    if 'state' in df.columns:
-        st.info("Latitude/longitude not present — showing top states by metric.")
-        bar = df.groupby('state')[metric].sum().reset_index().sort_values(metric, ascending=False).head(20)
-        fig = px.bar(bar, x=metric, y='state', orientation='h', title=f"Top States by {metric}")
-        st.plotly_chart(fig, use_container_width=True)
+    
+    # Tabs for different visualizations
+    tab1, tab2, tab3 = st.tabs(["🗺️ State Map", "📊 Top States", "📈 Trends"])
+    
+    with tab1:
+        render_india_state_map(df, metric)
+    
+    with tab2:
+        render_state_rankings(df, metric)
+    
+    with tab3:
+        render_state_trends(df, metric)
+
+
+def render_india_state_map(df, metric):
+    """Render choropleth map of Indian states"""
+    
+    # State code mapping for India (ISO 3166-2:IN)
+    state_codes = {
+        'andhra pradesh': 'AP', 'arunachal pradesh': 'AR', 'assam': 'AS',
+        'bihar': 'BR', 'chhattisgarh': 'CG', 'goa': 'GA', 'gujarat': 'GJ',
+        'haryana': 'HR', 'himachal pradesh': 'HP', 'jharkhand': 'JH',
+        'karnataka': 'KA', 'kerala': 'KL', 'madhya pradesh': 'MP',
+        'maharashtra': 'MH', 'manipur': 'MN', 'meghalaya': 'ML',
+        'mizoram': 'MZ', 'nagaland': 'NL', 'odisha': 'OR', 'punjab': 'PB',
+        'rajasthan': 'RJ', 'sikkim': 'SK', 'tamil nadu': 'TN',
+        'telangana': 'TG', 'tripura': 'TR', 'uttar pradesh': 'UP',
+        'uttarakhand': 'UK', 'west bengal': 'WB',
+        'andaman and nicobar': 'AN', 'chandigarh': 'CH',
+        'dadra and nagar haveli': 'DN', 'daman and diu': 'DD',
+        'delhi': 'DL', 'jammu and kashmir': 'JK', 'ladakh': 'LA',
+        'lakshadweep': 'LD', 'puducherry': 'PY'
+    }
+    
+    # Prepare data
+    df_plot = df.copy()
+    df_plot['state_lower'] = df_plot['state'].str.lower().str.strip()
+    df_plot['state_code'] = df_plot['state_lower'].map(state_codes)
+    
+    # Aggregate by state
+    state_agg = df_plot.groupby(['state', 'state_code']).agg({
+        metric: 'sum'
+    }).reset_index()
+    
+    state_agg = state_agg.dropna(subset=['state_code'])
+    
+    if state_agg.empty:
+        st.warning("No valid state data found. Please check state names in your CSV.")
         return
-    st.warning("geographic_data.csv requires either latitude/longitude columns or a 'state' column.")
+    
+    # Create India choropleth using scatter_geo with India focus
+    fig = px.scatter_geo(
+        state_agg,
+        locations='state_code',
+        locationmode='ISO-3',
+        color=metric,
+        hover_name='state',
+        size=metric,
+        color_continuous_scale='Blues',
+        title=f"{metric.replace('_', ' ').title()} Across Indian States",
+        size_max=50
+    )
+    
+    # Configure geography for India
+    fig.update_geos(
+        scope='asia',
+        center=dict(lat=22.5, lon=78.9),  # Center of India
+        projection_scale=4.5,  # Zoom level
+        visible=True,
+        resolution=50,
+        showcountries=True,
+        countrycolor='lightgray',
+        showcoastlines=True,
+        coastlinecolor='white',
+        showland=True,
+        landcolor='rgb(250, 250, 250)',
+        bgcolor='rgb(255, 255, 255)',
+        lataxis_range=[6, 37],
+        lonaxis_range=[68, 98]
+    )
+    
+    fig.update_layout(
+        height=650,
+        margin=dict(l=0, r=0, t=40, b=0),
+        coloraxis_colorbar=dict(
+            title=metric.replace('_', ' ').title(),
+            thickness=15,
+            len=0.7
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Regional breakdown
+    st.subheader("🌏 Regional Breakdown")
+    
+    # Define regions (you can customize this based on your business regions)
+    region_mapping = {
+        'north': ['punjab', 'haryana', 'himachal pradesh', 'jammu and kashmir', 
+                  'ladakh', 'delhi', 'chandigarh', 'uttarakhand', 'uttar pradesh'],
+        'south': ['karnataka', 'kerala', 'tamil nadu', 'andhra pradesh', 
+                  'telangana', 'puducherry'],
+        'east': ['west bengal', 'odisha', 'bihar', 'jharkhand', 'assam', 
+                 'arunachal pradesh', 'manipur', 'meghalaya', 'mizoram', 
+                 'nagaland', 'sikkim', 'tripura'],
+        'west': ['maharashtra', 'gujarat', 'goa', 'rajasthan', 'madhya pradesh', 
+                 'chhattisgarh']
+    }
+    
+    df_plot['region'] = df_plot['state_lower'].apply(
+        lambda x: next((k for k, v in region_mapping.items() if x in v), 'other')
+    )
+    
+    region_agg = df_plot.groupby('region')[metric].sum().reset_index()
+    region_agg = region_agg[region_agg['region'] != 'other'].sort_values(metric, ascending=False)
+    
+    if not region_agg.empty:
+        fig_region = px.bar(
+            region_agg, 
+            x='region', 
+            y=metric,
+            text_auto='.2s',
+            color='region',
+            title=f"{metric.replace('_', ' ').title()} by Region"
+        )
+        fig_region.update_traces(textposition='outside')
+        fig_region.update_layout(showlegend=False, xaxis_title="Region", 
+                                 yaxis_title=metric.replace('_', ' ').title())
+        st.plotly_chart(fig_region, use_container_width=True)
+
+
+def render_state_rankings(df, metric):
+    """Show top and bottom performing states"""
+    
+    state_agg = df.groupby('state')[metric].sum().reset_index().sort_values(metric, ascending=False)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🏆 Top 10 States")
+        top10 = state_agg.head(10)
+        
+        fig_top = px.bar(
+            top10, 
+            y='state', 
+            x=metric,
+            orientation='h',
+            text_auto='.2s',
+            color=metric,
+            color_continuous_scale='Greens'
+        )
+        fig_top.update_traces(textposition='outside')
+        fig_top.update_layout(showlegend=False, yaxis={'categoryorder': 'total ascending'})
+        st.plotly_chart(fig_top, use_container_width=True)
+    
+    with col2:
+        st.subheader("📉 Bottom 10 States")
+        bottom10 = state_agg.tail(10)
+        
+        fig_bottom = px.bar(
+            bottom10, 
+            y='state', 
+            x=metric,
+            orientation='h',
+            text_auto='.2s',
+            color=metric,
+            color_continuous_scale='Reds'
+        )
+        fig_bottom.update_traces(textposition='outside')
+        fig_bottom.update_layout(showlegend=False, yaxis={'categoryorder': 'total descending'})
+        st.plotly_chart(fig_bottom, use_container_width=True)
+    
+    # Summary metrics
+    st.subheader("📊 Summary Statistics")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total States", len(state_agg))
+    with col2:
+        st.metric(f"Total {metric.replace('_', ' ').title()}", f"{state_agg[metric].sum():,.0f}")
+    with col3:
+        st.metric("Average per State", f"{state_agg[metric].mean():,.0f}")
+    with col4:
+        st.metric("Median per State", f"{state_agg[metric].median():,.0f}")
+
+
+def render_state_trends(df, metric):
+    """Show trends if data includes additional dimensions"""
+    st.subheader("📈 State Comparison")
+    
+    # Multi-select for states
+    all_states = sorted(df['state'].dropna().unique().tolist())
+    
+    if len(all_states) == 0:
+        st.info("No state data available for trends.")
+        return
+    
+    default_states = all_states[:5] if len(all_states) >= 5 else all_states
+    selected_states = st.multiselect(
+        "Select states to compare",
+        options=all_states,
+        default=default_states,
+        key="state_compare"
+    )
+    
+    if not selected_states:
+        st.info("Please select at least one state to view comparison.")
+        return
+    
+    # Filter and compare
+    df_filtered = df[df['state'].isin(selected_states)]
+    
+    # If there are multiple metrics, show comparison
+    numeric_cols = df_filtered.select_dtypes(include=['number']).columns.tolist()
+    
+    if len(numeric_cols) > 1:
+        comparison = df_filtered.groupby('state')[numeric_cols].sum().reset_index()
+        
+        fig = px.bar(
+            comparison.melt(id_vars='state', value_vars=numeric_cols),
+            x='state',
+            y='value',
+            color='variable',
+            barmode='group',
+            title="Multi-Metric Comparison"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        # Single metric comparison
+        comparison = df_filtered.groupby('state')[metric].sum().reset_index()
+        fig = px.bar(comparison, x='state', y=metric, text_auto=True)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Data table
+    st.subheader("📋 Detailed Data")
+    st.dataframe(
+        df_filtered.groupby('state')[numeric_cols].sum().reset_index(),
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+def df_or_warn(data_dict, key):
+    """Get dataframe from data dict with warning if missing"""
+    df = data_dict.get(key)
+    if df is None or df.empty:
+        st.warning(f"Dataset `{key}` missing or empty.")
+        return pd.DataFrame()
+    return df.copy()
+
+
+# INSTRUCTIONS FOR INTEGRATION:
+# 1. Replace your geographic_analysis() function with geographic_analysis_india()
+# 2. Update the function call in your page router:
+#    elif page == "Geographic Analysis":
+#        geographic_analysis_india(data)
 
 # ---------------------------
 # PAGE ROUTER
