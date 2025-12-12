@@ -251,6 +251,16 @@ def age_distribution():
     fig = px.histogram(dff, x='age', nbins=bins, title="Age Distribution")
     st.plotly_chart(fig, use_container_width=True)
 
+# LTV box plot
+def ltv_by_segment():
+    st.subheader("Lifetime Value (LTV) by Segment")
+    df = df_or_warn('customer')
+    if df.empty or 'ltv' not in df.columns or 'segment' not in df.columns:
+        st.warning("customer_data.csv must include 'ltv' and 'segment'.")
+        return
+    show_points = st.checkbox("Show individual points", key="ltv_points")
+    fig = px.box(df, x='segment', y='ltv', points='all' if show_points else 'outliers', title='LTV by Segment')
+    st.plotly_chart(fig, use_container_width=True)
 
 # Violin plot - satisfaction
 def satisfaction_violin():
