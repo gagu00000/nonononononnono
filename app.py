@@ -540,5 +540,5 @@ elif page == "ML Model Evaluation":
 
 # Footer
 st.sidebar.markdown("---")
-st.sidebar.write("Built for: Masters of AI in Business — NovaMart")
-st.sidebar.write("Author: Data Analyst")
+st.sidebar.write("Built for: Streamlit Data Visualization Assignment")
+st.sidebar.write("Author: Gagandeep Singh")
