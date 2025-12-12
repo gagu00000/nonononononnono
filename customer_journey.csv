@@ -1,0 +1,9 @@
+touchpoint_1,touchpoint_2,touchpoint_3,touchpoint_4,customer_count
+Paid Search,Website,Email,Purchase,1200
+Social Media,Website,Retargeting,Purchase,800
+Organic Search,Website,Email,Purchase,600
+Paid Search,Website,Exit,,3000
+Social Media,Website,Exit,,2500
+Referral,Website,Email,Purchase,400
+Direct,Website,Purchase,,500
+Email,Website,Purchase,,450
