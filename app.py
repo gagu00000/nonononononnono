@@ -251,37 +251,47 @@ def age_distribution():
     fig = px.histogram(dff, x='age', nbins=bins, title="Age Distribution")
     st.plotly_chart(fig, use_container_width=True)
 
-# -------------------------------
+# ----------------------------------------------------
 # Lifetime Value (LTV) by Segment
-# -------------------------------
-st.subheader("💰 Lifetime Value (LTV) by Segment")
+# ----------------------------------------------------
+st.subheader("💰 Lifetime Value (LTV) by Customer Segment")
 
-if "customer_segment" in customer_df.columns and "avg_order_value" in customer_df.columns:
+# Make sure the customer dataset actually loaded
+if "customer_data.csv" in uploaded_files:
 
-    temp = customer_df.copy()
+    customer_df = uploaded_files["customer_data.csv"]
 
-    # Avoid division by zero
-    temp["safe_churn"] = temp["churn_probability"].replace(0, 0.001)
+    # Check needed columns
+    required_cols = ["customer_segment", "avg_order_value", "churn_probability"]
+    missing_cols = [col for col in required_cols if col not in customer_df.columns]
 
-    # Compute LTV
-    temp["ltv"] = temp["avg_order_value"] / temp["safe_churn"]
+    if missing_cols:
+        st.warning(f"Missing columns needed for LTV calculation: {', '.join(missing_cols)}")
+    else:
+        temp = customer_df.copy()
 
-    # Group by segment
-    ltv_segment = temp.groupby("customer_segment")["ltv"].mean().reset_index()
+        # Prevent division by zero in churn rate
+        temp["safe_churn"] = temp["churn_probability"].replace(0, 0.001)
 
-    fig_ltv = px.bar(
-        ltv_segment,
-        x="customer_segment",
-        y="ltv",
-        title="Lifetime Value (LTV) by Customer Segment",
-        template="plotly_dark",
-        color="customer_segment"
-    )
-    
-    st.plotly_chart(fig_ltv, use_container_width=True)
+        # Compute LTV
+        temp["ltv"] = temp["avg_order_value"] / temp["safe_churn"]
+
+        # Group by segment
+        ltv_segment = temp.groupby("customer_segment")["ltv"].mean().reset_index()
+
+        fig_ltv = px.bar(
+            ltv_segment,
+            x="customer_segment",
+            y="ltv",
+            title="Lifetime Value (LTV) by Customer Segment",
+            template="plotly_dark",
+            color="customer_segment"
+        )
+        
+        st.plotly_chart(fig_ltv, use_container_width=True)
 
 else:
-    st.warning("customer_data.csv must include columns related to LTV calculation (avg_order_value, churn_probability, customer_segment).")
+    st.warning("Upload customer_data.csv to view LTV analysis.")
 
 
 # Violin plot - satisfaction
