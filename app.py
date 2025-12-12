@@ -251,16 +251,38 @@ def age_distribution():
     fig = px.histogram(dff, x='age', nbins=bins, title="Age Distribution")
     st.plotly_chart(fig, use_container_width=True)
 
-# LTV box plot
-def ltv_by_segment():
-    st.subheader("Lifetime Value (LTV) by Segment")
-    df = df_or_warn('customer')
-    if df.empty or 'ltv' not in df.columns or 'segment' not in df.columns:
-        st.warning("customer_data.csv must include 'ltv' and 'segment'.")
-        return
-    show_points = st.checkbox("Show individual points", key="ltv_points")
-    fig = px.box(df, x='segment', y='ltv', points='all' if show_points else 'outliers', title='LTV by Segment')
-    st.plotly_chart(fig, use_container_width=True)
+# -------------------------------
+# Lifetime Value (LTV) by Segment
+# -------------------------------
+st.subheader("💰 Lifetime Value (LTV) by Segment")
+
+if "customer_segment" in customer_df.columns and "avg_order_value" in customer_df.columns:
+
+    temp = customer_df.copy()
+
+    # Avoid division by zero
+    temp["safe_churn"] = temp["churn_probability"].replace(0, 0.001)
+
+    # Compute LTV
+    temp["ltv"] = temp["avg_order_value"] / temp["safe_churn"]
+
+    # Group by segment
+    ltv_segment = temp.groupby("customer_segment")["ltv"].mean().reset_index()
+
+    fig_ltv = px.bar(
+        ltv_segment,
+        x="customer_segment",
+        y="ltv",
+        title="Lifetime Value (LTV) by Customer Segment",
+        template="plotly_dark",
+        color="customer_segment"
+    )
+    
+    st.plotly_chart(fig_ltv, use_container_width=True)
+
+else:
+    st.warning("customer_data.csv must include columns related to LTV calculation (avg_order_value, churn_probability, customer_segment).")
+
 
 # Violin plot - satisfaction
 def satisfaction_violin():
